@@ -1,0 +1,149 @@
+---
+title: "Team A Project"
+date: "02/01/2015"
+output: html_document
+---
+
+```{r}
+
+data <- read.csv('NFL_Data.csv', sep=',')
+data <- data[,-c(6,10)]
+test <- data[data$Year == 2014,-c(1,2,9)]
+train <- data[data$Year != 2014, -c(1,2,9)]
+```
+
+```{r}
+library("ggplot2")
+library('gridExtra')
+
+a <- ggplot(train, aes(x=RYds.G)) + geom_histogram(aes(y=..density..),binwidth=5, colour="black", fill="white") + geom_density(alpha=0.2, fill="#FF6666")
+
+b <- ggplot(train, aes(x=Pts.G)) + geom_histogram(aes(y=..density..),binwidth=1, colour="black", fill="white") + geom_density(alpha=0.2, fill="#FF6666")
+
+c <- ggplot(train, aes(x=PYds.G)) + geom_histogram(aes(y=..density..),binwidth=6, colour="black", fill="white") + geom_density(alpha=0.2, fill="#FF6666")
+
+d <- ggplot(train, aes(x=DPYds.G)) + geom_histogram(aes(y=..density..),binwidth=6, colour="black", fill="white") + geom_density(alpha=0.2, fill="#FF6666")
+
+grid.arrange(a,b,c,d, ncol=2, nrow=2)
+summary(train)
+```
+The
+
+
+```{r}
+dev.off()
+library('GGally')
+M <- cor(train)
+ggpairs(M)
+
+cor(M, use="pairwise", method="spearman")
+```
+              Pts.G      RYds.G      PYds.G      DPts.G     DRYds.G    DPYds.G
+Pts.G    1.00000000  0.71428571  0.60000000 -0.77142857 -0.94285714 0.08571429
+RYds.G   0.71428571  1.00000000 -0.02857143 -0.88571429 -0.88571429 0.02857143
+PYds.G   0.60000000 -0.02857143  1.00000000 -0.02857143 -0.31428571 0.48571429
+DPts.G  -0.77142857 -0.88571429 -0.02857143  1.00000000  0.88571429 0.31428571
+DRYds.G -0.94285714 -0.88571429 -0.31428571  0.88571429  1.00000000 0.02857143
+DPYds.G  0.08571429  0.02857143  0.48571429  0.31428571  0.02857143 1.00000000
+
+```{r}
+fit <- lm(Pts.G ~ ., data=train)
+summary(fit)
+```
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -8.126441   1.575682  -5.157 3.79e-07 ***
+RYds.G       0.087451   0.005698  15.349  < 2e-16 ***
+PYds.G       0.088036   0.003059  28.783  < 2e-16 ***
+DPts.G      -0.366151   0.045438  -8.058 7.36e-15 ***
+DRYds.G      0.010251   0.007689   1.333    0.183    
+DPYds.G      0.034637   0.005592   6.194 1.35e-09 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 2.333 on 440 degrees of freedom
+Multiple R-squared:  0.7372,  Adjusted R-squared:  0.7342 
+F-statistic: 246.9 on 5 and 440 DF,  p-value: < 2.2e-16
+
+```{r}
+fit2 <- lm(Pts.G ~ DPYds.G + DPts.G + PYds.G + RYds.G, data=train)
+summary(fit2)
+```
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -6.913359   1.287573  -5.369 1.28e-07 ***
+DPYds.G      0.032141   0.005274   6.094 2.40e-09 ***
+DPts.G      -0.328874   0.035850  -9.174  < 2e-16 ***
+PYds.G       0.087389   0.003023  28.913  < 2e-16 ***
+RYds.G       0.086026   0.005601  15.358  < 2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 2.335 on 441 degrees of freedom
+Multiple R-squared:  0.7361,  Adjusted R-squared:  0.7338 
+F-statistic: 307.6 on 4 and 441 DF,  p-value: < 2.2e-16
+
+
+Normal distribution in residuals
+```{r}
+residuals <-resid(fit)
+
+df<-density(residuals)
+plot(df)
+polygon(df, col="pink")
+```
+
+No Pattern in residuals
+```{r}
+qplot(predict(fit),resid(fit), geom="point")+geom_abline(intercept=0,slope=0, col = "gray60")
+```
+
+```{r}
+a <- qplot(train$DPYds.G, train$Pts.G, geom="point", t) + geom_smooth(method='lm')
+b <- qplot(train$DPts.G, train$Pts.G, geom="point", t) + geom_smooth(method='lm')
+c <- qplot(train$PYds.G, train$Pts.G, geom="point", t) + geom_smooth(method='lm')
+d <- qplot(train$RYds.G, train$Pts.G, geom="point", t) + geom_smooth(method='lm')
+
+grid.arrange(a,b,c,d, ncol=2, nrow=2)
+```
+
+Goodness of fit
+```{r}
+library(hydroGOF)
+p<-fit$rank-1
+yhat <- predict(fit2,newdata=test)
+test$Predicted <- yhat
+rmse <- sqrt(mse(test$Predicted,test$Pts.G))
+rss <- sum((test$Pts.G - test$Predicted)^2)
+rse <- sqrt(rss/(length(test)-p-1))
+```
+
+```{r}
+library(car)
+vif(fit2)
+```
+DPYds.G   DPts.G   PYds.G   RYds.G 
+1.509356 1.519582 1.128867 1.171836
+No multi-colinearity as values are under 5
+
+```{r}
+durbinWatsonTest(fit2)
+```
+ lag Autocorrelation D-W Statistic p-value
+   1       0.1984609      1.594434       0
+ Alternative hypothesis: rho != 0
+ Violated- errors are not independent
+
+```{r}
+outlierTest(fit2)
+```
+No Studentized residuals with Bonferonni p < 0.05
+Largest |rstudent|:
+    rstudent unadjusted p-value Bonferonni p
+276 3.251971          0.0012342      0.55047
+Not clear outliers as Bonferonni value is over 0.05
+
+
+
+Practical Insights:
+Passing yards have the greatest effect on the points scored in American Football. This makes sense, as passings and rushing yards are needed to get close to the end zone for points. The interesting insight is that passing yards have a greater impact on points than running yards. This, however, is obvious to a regular NFL fan as a team moves towards the end zone faster when the quaterback throws the ball as opposed to handing it off for a player to run with it. Yet, something somewhat unexpected that this study does bring light to is how much the defense impacts the amount of points scored. The defensive variables had clear predictive power for points. In practice, a causal relationship can be inferred being that the better a team's defense is, the more the team will have the ball to be able to score points.
